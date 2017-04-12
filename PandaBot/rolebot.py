@@ -6,16 +6,17 @@ log_file = "log.txt"
 client = discord.Client()
 roles = []
 protected_roles = []
-commands = {'>addselrole':True, '>removeselrole':True, '>getrole':True, '>removerole':True, '>listroles':True, '>help':True, '>prune':True, '>protectrole':True}
+commands = {'>addselrole':True, '>removeselrole':True, '>getrole':True, '>removerole':True, '>listroles':True, '>help':True, '>prune':True, '>protectrole':True, '>info':True}
 commands_with_help = {'>addselrole [role]':'Adds a role to the list of publically available roles', \
                       '>removeselrole [role]':'Removes a role from the list of publically available roles', \
                       '>getrole [role]':'Acquire the specified role from the list of publically available roles', \
                       '>removerole [role]':'Removes the specified publically available role from your account', \
+                      '>info':'Shows information about the current server', \
                       '>listroles':'Lists all publically available roles', \
                       '>prune [limit]':'(Moderation) Deletes the last [limit] messages, where limit is a number.', \
                       '>protectrole [role][1/0]':'(Administration) Adds or removes a role to/from the list of protected roles, which cannot be made publically available.'}
-short_commands = {'>asr':True, '>rsr':True, '>gr':True, '>rr':True, '>lr':True, '>h':True, '>p':True, '>pr':True}
-linked_commands = {'>addselrole':'>asr', '>removeselrole':'>rsr', '>getrole':'>gr', '>removerole':'>rr', '>listroles':'>lr', '>help':'>h', '>prune':'>p', '>protectrole':'>pr'}
+short_commands = {'>asr':True, '>rsr':True, '>gr':True, '>rr':True, '>lr':True, '>h':True, '>p':True, '>pr':True, '>i':True}
+linked_commands = {'>addselrole':'>asr', '>removeselrole':'>rsr', '>getrole':'>gr', '>removerole':'>rr', '>listroles':'>lr', '>help':'>h', '>prune':'>p', '>protectrole':'>pr', '>info':'>i'}
 known_servers = []
 
 @client.event
@@ -211,7 +212,21 @@ def handle_command(message, command):
         output = output + "```"
         yield from client.send_message(requester, output)
 
-
+    ###### Server info ######
+    if(yield from command_in_and_useable(['>info', '>i'], command)):
+        output = "```###Server Info### \n"
+        output = output + (\
+                 "Server name: " + str(Server) + "\n"\
+                 + "Server region: " + Server.region.name + "\n"\
+                 + "Server id: " + str(Server.id) + "\n"\
+                 + "Server owner: " + str(Server.owner) + "\n"\
+                 + "Created at: " + str(Server.created_at) + "\n"\
+                 + "Channel count: " + str(len(Server.channels)) + "\n"\
+                 + "Member count: " + str(Server.member_count) + "\n")
+        output = output + "```"
+        yield from client.send_message(message.channel, output)
+                    
+        
     ###### Get selectable role ######
     if(yield from command_in_and_useable(['>getrole', '>gr'], command)):
         if(len(msgSplit) > 1):
