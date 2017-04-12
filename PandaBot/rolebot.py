@@ -27,6 +27,16 @@ async def on_ready():
 
 @client.event
 @asyncio.coroutine
+def on_member_join(member):
+    yield from client.send_message(member.server.default_channel, ('` ' + member.name + ' has joined the server.`'))
+
+@client.event
+@asyncio.coroutine
+def on_member_remove(member):
+    yield from client.send_message(member.server.default_channel, ('` ' + member.name + ' has left the server.`'))
+
+@client.event
+@asyncio.coroutine
 def on_message(message):
     if((message.server not in known_servers) and message.server is not None):
         yield from refresh_roles(message.server)
