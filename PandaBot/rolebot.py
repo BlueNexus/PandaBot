@@ -2,6 +2,7 @@ import discord
 import asyncio
 import math
 
+log_file = "log.txt"
 client = discord.Client()
 roles = []
 protected_roles = []
@@ -31,7 +32,7 @@ def on_message(message):
         yield from refresh_roles(message.server)
         known_servers.append(message.server)
     if message.content.startswith('>'):
-        print("Command found. Context:" + message.content)
+        yield from print_to_log(message)
         message_split = message.content.split()
         if((message_split[0] in commands) or (message_split[0] in short_commands)):
             yield from handle_command(message, message_split[0])
@@ -50,6 +51,11 @@ def dump_roles():
         for pro_role in protected_roles:
             file.write("### " + pro_role.name + "\n")
     print("Done.")
+
+@asyncio.coroutine
+def print_to_log(message):
+    with open(log_file, "a") as file:
+        file.write(str(message.timestamp) + " " + message.author.name + " " + message.clean_content)
 
 @asyncio.coroutine
 def refresh_roles(server):
