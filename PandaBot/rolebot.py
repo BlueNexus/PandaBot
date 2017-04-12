@@ -55,7 +55,7 @@ def dump_roles():
 @asyncio.coroutine
 def print_to_log(message):
     with open(log_file, "a") as file:
-        file.write(str(message.timestamp) + " " + message.author.name + " " + message.clean_content)
+        file.write(str(message.timestamp) + " " + message.author.name + " " + message.clean_content + "\n")
 
 @asyncio.coroutine
 def refresh_roles(server):
