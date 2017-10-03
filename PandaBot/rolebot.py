@@ -39,6 +39,11 @@ known_servers = []
 @client.event
 @asyncio.coroutine
 def on_ready():
+    '''
+    params: None
+    returns: None
+    Called when the bot is finished initialising. Logs its success to file.
+    '''
     yield from event_to_log('Logged in as')
     yield from event_to_log(client.user.name)
     yield from event_to_log(client.user.id)
@@ -47,16 +52,31 @@ def on_ready():
 @client.event
 @asyncio.coroutine
 def on_member_join(member):
+    '''
+    params: member (Member object)
+    returns: None
+    Announces that a new member has joined the server, in the server's default channel.
+    '''
     yield from client.send_message(member.server.default_channel, ('` ' + member.name + ' has joined the server.`'))
 
 @client.event
 @asyncio.coroutine
 def on_member_remove(member):
+    '''
+    params: member (Member object)
+    returns: None
+    Announces that a member has left the server, in the server's default channel.
+    '''
     yield from client.send_message(member.server.default_channel, ('` ' + member.name + ' has left the server.`'))
 
 @client.event
 @asyncio.coroutine
 def on_message_delete(message):
+    '''
+    Params: message (Message object)
+    returns: None
+    Logs the deletion of a message to the designated log channel.
+    '''
     content = message.content.strip('`')
     if(log_channel is not None):
         output = (\
@@ -70,10 +90,17 @@ def on_message_delete(message):
 @client.event
 @asyncio.coroutine
 def on_message(message):
+    '''
+    Params: message (Message object)
+    returns: None
+    Called whenever the bot detects a message.
+    '''
+    #If the bot hasn't received a message from this server before, get its role/config info
     if((message.server not in known_servers) and message.server is not None):
         yield from refresh_roles(message.server)
         yield from refresh_config(message.server)
         known_servers.append(message.server)
+    #If it's a command
     if message.content.startswith('-'):
         yield from message_to_log(message)
         message_split = message.content.split()
@@ -81,16 +108,30 @@ def on_message(message):
             yield from handle_command(message, message_split[0])
         else:
             yield from client.send_message(message.channel, '`Command not found`')
+    #If it's from the bot, and timeout is enabled, delete the message.
     if((message.author.id == client.user.id) and self_timeout):
         time.sleep(5)
         yield from client.delete_message(message)
 
 @asyncio.coroutine
 def is_role(msg, Ser):
+    '''
+    Params: msg, Ser (string, Server object)
+    returns: Role object
+    Checks if the given string is the name of a role, and returns that role.
+    (assuming testing is a role)
+    >>is_role(testing, message.server)
+    Role object
+    '''
     return(discord.utils.get(Ser.roles, name=msg))
 
 @asyncio.coroutine
 def dump_roles():
+    '''
+    Params: None
+    Returns: None
+    Dumps the server's role information to file, formatting it as necessary for later reading.
+    '''
     with open(roles_file, "w+") as file:
         for role in roles:
             file.write(role.name + "\n")
@@ -100,6 +141,10 @@ def dump_roles():
 
 @asyncio.coroutine
 def dump_config():
+    '''
+    Params: None
+    Returns: N
+    '''
     with open(config_file, "w+") as file:
         if(log_channel is not None):
             file.write("# " + log_channel.id + "\n")
@@ -308,15 +353,12 @@ def handle_command(message, command):
     ###### Get selectable role ######
     if(yield from command_in_and_useable(['-getrole', '-gr'], command)):
         if(len(msgSplit) > 1):
-            to_add = msgSplit[1]
+            to_add = str(" ".join(msgSplit[1:])).strip("[]'")
             role = yield from is_role(to_add, Server)
             if(role and (role in roles)):
                 if(not(discord.utils.get(requester.roles, name=to_add))):
-                    if(role < requester.top_role):
-                        yield from discord.Client.add_roles(client, requester, role)
-                        yield from client.send_message(message.channel, '`Role acquired`')
-                    else:
-                        fail_msg = '`Permission Denied`'
+                    yield from discord.Client.add_roles(client, requester, role)
+                    yield from client.send_message(message.channel, '`Role acquired`')
                 else:
                     fail_msg = '`You already have this role`'
             else:
@@ -327,7 +369,7 @@ def handle_command(message, command):
     ###### Remove owned selectable role ######
     if(yield from command_in_and_useable(['-removerole', '-rr'], command)):
         if(len(msgSplit) > 1):
-            to_rem = msgSplit[1]
+            to_rem = str(" ".join(msgSplit[1:])).strip("[]'")
             role = yield from is_role(to_rem, Server)
             if(role and (role in roles)):
                 if(discord.utils.get(requester.roles, name=to_rem)):
