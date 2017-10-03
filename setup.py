@@ -1,8 +1,8 @@
 from setuptools import setup
 
 setup(name='PandaBot',
-	version='1.0',
-	author='Ben J. C. Reeve',
+	version='1.2',
+	author='Benjamin J. C. Reeve',
 	author_email='benreeve99@yahoo.co.uk',
 	packages=['PandaBot'],
 	install_requires=['discord.py'],

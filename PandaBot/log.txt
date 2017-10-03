@@ -1,1 +1,2 @@
-
+2017-10-02 11:47:39.865000 BlueNexus#0489 -pr test') on_ready();
+2017-10-02 11:48:17.750000 BlueNexus#0489 -pr ") on_ready()
