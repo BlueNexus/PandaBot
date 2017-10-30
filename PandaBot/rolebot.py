@@ -3,25 +3,31 @@ import asyncio
 import math
 import time
 import datetime
+import random
 #
 ######## CONFIG ########
 config_file = "config.txt"
 log_file = "log.txt"
 roles_file = "roles.txt"
+key_file = "key.txt"
 self_timeout = False
 ########################
 
 ####### GLOBALS ########
+spooky_emotes = [":ghost:", ":bat:", ":skull:", ":spider:", ":spider_web:", ":jack_o_lantern:"]
 client = discord.Client()
 roles = []
 protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-
+bot_version = "1.2a"
+version_text = ["Added the changelog command.", "Added the -makespooky and -removespooky commands.", "The bot no longer replies to invalid commands."]
+reaction_linked_messages = {}
 ########################
 
-commands = {'-addselrole':True, '-removeselrole':True, '-getrole':True, '-removerole':True, '-listroles':True, '-help':True, '-prune':True, '-protectrole':True, '-info':True, '-selftimeout':True, '-setlogchannel':True}
+commands = {'-addselrole':True, '-removeselrole':True, '-getrole':True, '-removerole':True, '-listroles':True, '-help':True, '-prune':True, '-protectrole':True, '-info':True, '-selftimeout':True, '-setlogchannel':True, '-changelog':True,\
+            '-makespooky':True, '-removespooky':True}
 commands_with_help = {'-addselrole [role]':'Adds a role to the list of publically available roles', \
                       '-removeselrole [role]':'Removes a role from the list of publically available roles', \
                       '-getrole [role]':'Acquire the specified role from the list of publically available roles', \
@@ -32,8 +38,8 @@ commands_with_help = {'-addselrole [role]':'Adds a role to the list of publicall
                       '-protectrole [role][1/0]':'(Administration) Adds or removes a role to/from the list of protected roles, which cannot be made publically available.', \
                       '-selftimeout':'Toggles whether or not bot messages will be removed after a few seconds', \
                       '-setlogchannel':'Sets the current channel as the designated "log" channel, where deleted messages etc. will be logged.'}
-short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True}
-linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc'}
+short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-ms':True, '-rs':True}
+linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makespooky':'-ms', '-removespooky':'-rs'}
 known_servers = []
 
 @client.event
@@ -86,6 +92,12 @@ def on_message_delete(message):
             'Message author: ' + message.author.name + '\n'\
             'Message contents: \n ------ \n' + content + '\n ------```')
         yield from client.send_message(log_channel, output)
+
+@client.event
+@asyncio.coroutine
+def on_reaction_add(reaction, user):
+    if(reaction_linked_messages[reaction.message.id]):
+        yield from reaction_linked_messages[reaction.message.id](user)
     
 @client.event
 @asyncio.coroutine
@@ -106,8 +118,6 @@ def on_message(message):
         message_split = message.content.split()
         if((message_split[0] in commands) or (message_split[0] in short_commands)):
             yield from handle_command(message, message_split[0])
-        else:
-            yield from client.send_message(message.channel, '`Command not found`')
     #If it's from the bot, and timeout is enabled, delete the message.
     if((message.author.id == client.user.id) and self_timeout):
         time.sleep(5)
@@ -210,6 +220,19 @@ def command_in_and_useable(possible, command):
     if(command in possible):
         return(yield from can_use_command(command))
     return(False)
+
+def get_all_members(server):
+    if(server):
+        if(server.large):
+            yield from client.request_offline_members(server)
+        return server.members
+    return None
+
+@asyncio.coroutine
+def couple_message_and_function(message, func):
+    global reaction_linked_messages
+    if(message not in reaction_linked_messages and func and message):
+        reaction_linked_messages[message.id] = func
 
 @asyncio.coroutine
 def handle_command(message, command):
@@ -403,14 +426,62 @@ def handle_command(message, command):
                 fail_msg = '`Timed out`'
         else:
             fail_msg = '`Permission Denied`'
-            
-                
 
-                
+    ###### Changelog ######
+    if(yield from command_in_and_useable(['-changelog', '-c'], command)):
+        output = "```###Changelog### \n"
+        output += "Version " + str(bot_version) + "\n"
+        buffer = [str(x) + ". " + str(version_text[x]) + "\n" for x in range(len(version_text))]
+        for line in buffer:
+            output += str(line)
+        output += "```"
+        yield from client.send_message(requester, output)
+
+    ###### Make Spooky ######
+    if(yield from command_in_and_useable(['-makespooky', '-ms'], command)):
+        if(requester.server_permissions.manage_nicknames):
+            if(Server.me.server_permissions.manage_nicknames):
+                mes = yield from client.send_message(message.channel, "`Add a reaction to this message to get a spookier name!\nPlease note that this will only work if you have Nitro.`")
+                yield from couple_message_and_function(mes, make_spooky)
+            else:
+                fail_msg = '`Bot has insufficient permissions`'
+        else:
+            fail_msg = '`Permission Denied`'
+
+    ###### Remove spooky ######
+    if(yield from command_in_and_useable(['-removespooky', '-rs'], command)):
+        if(requester.server_permissions.manage_nicknames):
+            if(Server.me.server_permissions.manage_nicknames):
+                for member in get_all_members(message.server):
+                    buffernick = (member.nick if member.nick else member.name)
+                    split_nick = buffernick.split()
+                    for emote in spooky_emotes:
+                        if(emote in split_nick):
+                            buffernick = buffernick.strip(spooky_emotes)
+                            yield from client.change_nickname(user, buffernick)
+                            break
+            else:
+                fail_msg = '`Bot has insufficient permissions`'
+        else:
+            fail_msg = '`Permission Denied`'
         
     
     if(len(fail_msg)):
         yield from client.send_message(message.channel, fail_msg)
 
-#Do NOT share this key, under any circumstances. 
-client.run()
+###Coupleable functions
+@asyncio.coroutine
+def make_spooky(user):
+    if(user):
+        buffernick = (user.nick if user.nick else user.name)
+        buffernick += " " + str(random.choice(spooky_emotes))
+        yield from client.send_message(user, buffernick)
+        yield from client.change_nickname(user, buffernick)
+            
+
+def get_key():
+    with open(key_file, 'r') as file:
+        return str(file.read())
+    
+#Do NOT share this key, under any circumstances.
+client.run(get_key())
