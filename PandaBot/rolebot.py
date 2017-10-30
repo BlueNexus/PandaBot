@@ -37,7 +37,10 @@ commands_with_help = {'-addselrole [role]':'Adds a role to the list of publicall
                       '-prune [limit]':'(Moderation) Deletes the last [limit] messages, where limit is a number.', \
                       '-protectrole [role][1/0]':'(Administration) Adds or removes a role to/from the list of protected roles, which cannot be made publically available.', \
                       '-selftimeout':'Toggles whether or not bot messages will be removed after a few seconds', \
-                      '-setlogchannel':'Sets the current channel as the designated "log" channel, where deleted messages etc. will be logged.'}
+                      '-setlogchannel':'Sets the current channel as the designated "log" channel, where deleted messages etc. will be logged.', \
+                      '-makespooky':'Sends a message prompting people with discord Nitro to react to it, giving them a spooky username.', \
+                      '-removespooky':'Strips all spooky emotes from all nicknames', \
+                      '-changelog':'Displays the changelog'}
 short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-ms':True, '-rs':True}
 linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makespooky':'-ms', '-removespooky':'-rs'}
 known_servers = []
@@ -166,7 +169,7 @@ def dump_config():
 @asyncio.coroutine
 def event_to_log(message):
     with open(log_file, "a") as file:
-        file.write("\n" + str(datetime.datetime.now()) + " " + message)
+        file.write(str(datetime.datetime.now()) + " " + message + "\n")
 
 #Deprecated
 @asyncio.coroutine
