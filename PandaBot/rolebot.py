@@ -477,7 +477,8 @@ def handle_command(message, command):
 def make_spooky(user):
     if(user):
         buffernick = (user.nick if user.nick else user.name)
-        buffernick += " " + str(random.choice(spooky_emotes))
+		random_emote = str(random.choice(spooky_emotes))
+        buffernick = random_emote + " " + buffernick +  " " + random_emote
         yield from client.change_nickname(user, buffernick)
 
 def get_key():
