@@ -21,7 +21,7 @@ protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.2a"
+bot_version = "1.2b"
 version_text = ["Added the changelog command.", "Added the -makespooky and -removespooky commands.", "The bot no longer replies to invalid commands."]
 reaction_linked_messages = {}
 ########################
@@ -478,9 +478,7 @@ def make_spooky(user):
     if(user):
         buffernick = (user.nick if user.nick else user.name)
         buffernick += " " + str(random.choice(spooky_emotes))
-        yield from client.send_message(user, buffernick)
         yield from client.change_nickname(user, buffernick)
-            
 
 def get_key():
     with open(key_file, 'r') as file:
