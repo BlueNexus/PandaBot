@@ -14,7 +14,7 @@ self_timeout = False
 ########################
 
 ####### GLOBALS ########
-spooky_emotes = [":ghost:", ":bat:", ":skull:", ":spider:", ":spider_web:", ":jack_o_lantern:"]
+spooky_emotes = ["👻", "🦇", "💀", "🕷️", "🕸️", "🎃"]
 client = discord.Client()
 roles = []
 protected_roles = []
