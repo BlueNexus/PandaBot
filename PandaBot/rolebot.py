@@ -14,20 +14,20 @@ self_timeout = False
 ########################
 
 ####### GLOBALS ########
-spooky_emotes = ["👻", "🦇", "💀", "🕷️", "🕸️", "🎃"]
+festive_emotes = ["❄", "🎅", "🎄", "🎀", "⛄", "🎊", "🍫", "🍭"]
 client = discord.Client()
 roles = []
 protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.2b"
-version_text = ["Added the changelog command.", "Added the -makespooky and -removespooky commands.", "The bot no longer replies to invalid commands."]
+bot_version = "1.3"
+version_text = ["Removed makespooky, added makefestive"]
 reaction_linked_messages = {}
 ########################
 
 commands = {'-addselrole':True, '-removeselrole':True, '-getrole':True, '-removerole':True, '-listroles':True, '-help':True, '-prune':True, '-protectrole':True, '-info':True, '-selftimeout':True, '-setlogchannel':True, '-changelog':True,\
-            '-makespooky':True, '-removespooky':True}
+            '-makefestive':True, '-removefestive':True}
 commands_with_help = {'-addselrole [role]':'Adds a role to the list of publically available roles', \
                       '-removeselrole [role]':'Removes a role from the list of publically available roles', \
                       '-getrole [role]':'Acquire the specified role from the list of publically available roles', \
@@ -38,11 +38,11 @@ commands_with_help = {'-addselrole [role]':'Adds a role to the list of publicall
                       '-protectrole [role][1/0]':'(Administration) Adds or removes a role to/from the list of protected roles, which cannot be made publically available.', \
                       '-selftimeout':'Toggles whether or not bot messages will be removed after a few seconds', \
                       '-setlogchannel':'Sets the current channel as the designated "log" channel, where deleted messages etc. will be logged.', \
-                      '-makespooky':'Sends a message prompting people with discord Nitro to react to it, giving them a spooky username.', \
-                      '-removespooky':'Strips all spooky emotes from all nicknames', \
+                      '-makefestive':'Sends a message prompting people with discord Nitro to react to it, giving them a festive username.', \
+                      '-removefestive':'Strips all festive emotes from all nicknames', \
                       '-changelog':'Displays the changelog'}
-short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-ms':True, '-rs':True}
-linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makespooky':'-ms', '-removespooky':'-rs'}
+short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True}
+linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makefestive':'-mf', '-removefestive':'-rf'}
 known_servers = []
 
 @client.event
@@ -440,27 +440,27 @@ def handle_command(message, command):
         output += "```"
         yield from client.send_message(requester, output)
 
-    ###### Make Spooky ######
-    if(yield from command_in_and_useable(['-makespooky', '-ms'], command)):
+    ###### Make festive ######
+    if(yield from command_in_and_useable(['-makefestive', '-ms'], command)):
         if(requester.server_permissions.manage_nicknames):
             if(Server.me.server_permissions.manage_nicknames):
                 mes = yield from client.send_message(message.channel, "`Add a reaction to this message to get a spookier name!\nPlease note that this will only work if you have Nitro.`")
-                yield from couple_message_and_function(mes, make_spooky)
+                yield from couple_message_and_function(mes, make_festive)
             else:
                 fail_msg = '`Bot has insufficient permissions`'
         else:
             fail_msg = '`Permission Denied`'
 
-    ###### Remove spooky ######
-    if(yield from command_in_and_useable(['-removespooky', '-rs'], command)):
+    ###### Remove festive ######
+    if(yield from command_in_and_useable(['-removefestive', '-rs'], command)):
         if(requester.server_permissions.manage_nicknames):
             if(Server.me.server_permissions.manage_nicknames):
                 for member in get_all_members(message.server):
                     buffernick = (member.nick if member.nick else member.name)
                     split_nick = buffernick.split()
-                    for emote in spooky_emotes:
+                    for emote in festive_emotes:
                         if(emote in split_nick):
-                            buffernick = buffernick.strip(spooky_emotes)
+                            buffernick = buffernick.strip(festive_emotes)
                             yield from client.change_nickname(user, buffernick)
                             break
             else:
@@ -474,10 +474,10 @@ def handle_command(message, command):
 
 ###Coupleable functions
 @asyncio.coroutine
-def make_spooky(user):
+def make_festive(user):
     if(user):
         buffernick = (user.nick if user.nick else user.name)
-		random_emote = str(random.choice(spooky_emotes))
+		random_emote = str(random.choice(festive_emotes))
         buffernick = random_emote + " " + buffernick +  " " + random_emote
         yield from client.change_nickname(user, buffernick)
 
