@@ -21,13 +21,14 @@ protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.3"
-version_text = ["Removed makespooky, added makefestive"]
+bot_version = "1.4"
+version_text = ["Hardcoding laziness"]
 reaction_linked_messages = {}
+override_default_channel = "256853479698464768"
 ########################
 
 commands = {'-addselrole':True, '-removeselrole':True, '-getrole':True, '-removerole':True, '-listroles':True, '-help':True, '-prune':True, '-protectrole':True, '-info':True, '-selftimeout':True, '-setlogchannel':True, '-changelog':True,\
-            '-makefestive':True, '-removefestive':True}
+            '-makefestive':True, '-removefestive':True, '-dumpchannelinfo':True}
 commands_with_help = {'-addselrole [role]':'Adds a role to the list of publically available roles', \
                       '-removeselrole [role]':'Removes a role from the list of publically available roles', \
                       '-getrole [role]':'Acquire the specified role from the list of publically available roles', \
@@ -38,11 +39,11 @@ commands_with_help = {'-addselrole [role]':'Adds a role to the list of publicall
                       '-protectrole [role][1/0]':'(Administration) Adds or removes a role to/from the list of protected roles, which cannot be made publically available.', \
                       '-selftimeout':'Toggles whether or not bot messages will be removed after a few seconds', \
                       '-setlogchannel':'Sets the current channel as the designated "log" channel, where deleted messages etc. will be logged.', \
-                      '-makefestive':'Sends a message prompting people with discord Nitro to react to it, giving them a festive username.', \
+                      '-makefestive':'Sends a message prompting people to react to it, giving them a festive username.', \
                       '-removefestive':'Strips all festive emotes from all nicknames', \
                       '-changelog':'Displays the changelog'}
-short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True}
-linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makefestive':'-mf', '-removefestive':'-rf'}
+short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True, '-dci':True}
+linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makefestive':'-mf', '-removefestive':'-rf', '-dumpchannelinfo':'-dci'}
 known_servers = []
 
 @client.event
@@ -66,7 +67,7 @@ def on_member_join(member):
     returns: None
     Announces that a new member has joined the server, in the server's default channel.
     '''
-    yield from client.send_message(member.server.default_channel, ('` ' + member.name + ' has joined the server.`'))
+    yield from client.send_message(member.server.default_channel if not client.get_channel(override_default_channel) else client.get_channel(override_default_channel), ('` ' + member.name + ' has joined the server.`'))
 
 @client.event
 @asyncio.coroutine
@@ -76,7 +77,8 @@ def on_member_remove(member):
     returns: None
     Announces that a member has left the server, in the server's default channel.
     '''
-    yield from client.send_message(member.server.default_channel, ('` ' + member.name + ' has left the server.`'))
+    yield from client.send_message(member.server.default_channel if not client.get_channel(override_default_channel) else client.get_channel(override_default_channel), ('` ' + member.name + ' has left the server.`'))
+
 
 @client.event
 @asyncio.coroutine
@@ -444,7 +446,7 @@ def handle_command(message, command):
     if(yield from command_in_and_useable(['-makefestive', '-ms'], command)):
         if(requester.server_permissions.manage_nicknames):
             if(Server.me.server_permissions.manage_nicknames):
-                mes = yield from client.send_message(message.channel, "`Add a reaction to this message to get a spookier name!\nPlease note that this will only work if you have Nitro.`")
+                mes = yield from client.send_message(message.channel, "`Add a reaction to this message to get a more festive name!`")
                 yield from couple_message_and_function(mes, make_festive)
             else:
                 fail_msg = '`Bot has insufficient permissions`'
@@ -467,6 +469,15 @@ def handle_command(message, command):
                 fail_msg = '`Bot has insufficient permissions`'
         else:
             fail_msg = '`Permission Denied`'
+    
+    ###### Dump Channel Info ######
+    if(yield from command_in_and_useable(['-dumpchannelinfo', '-rs'], command)):
+        mes = "```\n"
+        mes += message.channel.id + "\n"
+        mes += message.channel.server.id + "\n"
+        mes +=str(message.channel.position) + "\n"
+        mes += "```"
+        yield from client.send_message(message.channel, mes)
         
     
     if(len(fail_msg)):
