@@ -101,7 +101,7 @@ def on_message_delete(message):
 @client.event
 @asyncio.coroutine
 def on_reaction_add(reaction, user):
-    if(reaction_linked_messages[reaction.message.id]):
+    if(reaction.message.id in reaction_linked_messages and reaction_linked_messages[reaction.message.id]):
         yield from reaction_linked_messages[reaction.message.id](user)
     
 @client.event
@@ -183,11 +183,11 @@ def message_to_log(message):
 def refresh_roles(server):
     if(server not in known_servers):
         yield from event_to_log("Loading roles for " + server.name)
-        with open("roles.txt", "r") as file:
+        with open(roles_file, "r") as file:
             lines = [line.rstrip('\n') for line in file]
             for line in lines:
                 if(line.startswith("###")):
-                    line = line.split()
+                    line = line.split(maxsplit=1)
                     cur_role = yield from is_role(line[1], server)
                     if(cur_role):
                         protected_roles.append(cur_role)
@@ -488,7 +488,7 @@ def handle_command(message, command):
 def make_festive(user):
     if(user):
         buffernick = (user.nick if user.nick else user.name)
-		random_emote = str(random.choice(festive_emotes))
+        random_emote = str(random.choice(festive_emotes))
         buffernick = random_emote + " " + buffernick +  " " + random_emote
         yield from client.change_nickname(user, buffernick)
 
