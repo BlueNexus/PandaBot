@@ -4,6 +4,9 @@ import math
 import time
 import datetime
 import random
+import requests
+import mechanicalsoup
+
 #
 ######## CONFIG ########
 config_file = "config.txt"
@@ -14,21 +17,24 @@ self_timeout = False
 ########################
 
 ####### GLOBALS ########
-festive_emotes = ["❄", "🎅", "🎄", "🎀", "⛄", "🎊", "🍫", "🍭"]
+festive_emotes = []
+wikipaths = ["https://github.com/Baystation12/Baystation12/wiki","https://wiki.baystation12.net"]
+wiki_disqualifiers = ["Create New Page", "Home"]
 client = discord.Client()
 roles = []
-protected_roles = []
+protected_roles = []    
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.4"
-version_text = ["Hardcoding laziness"]
+bot_version = "1.6"
+version_text = ["Added a -wiki command."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
+
 ########################
 
 commands = {'-addselrole':True, '-removeselrole':True, '-getrole':True, '-removerole':True, '-listroles':True, '-help':True, '-prune':True, '-protectrole':True, '-info':True, '-selftimeout':True, '-setlogchannel':True, '-changelog':True,\
-            '-makefestive':True, '-removefestive':True, '-dumpchannelinfo':True}
+            '-makefestive':True, '-removefestive':True, '-dumpchannelinfo':True, '-wiki':True}
 commands_with_help = {'-addselrole [role]':'Adds a role to the list of publically available roles', \
                       '-removeselrole [role]':'Removes a role from the list of publically available roles', \
                       '-getrole [role]':'Acquire the specified role from the list of publically available roles', \
@@ -41,10 +47,12 @@ commands_with_help = {'-addselrole [role]':'Adds a role to the list of publicall
                       '-setlogchannel':'Sets the current channel as the designated "log" channel, where deleted messages etc. will be logged.', \
                       '-makefestive':'Sends a message prompting people to react to it, giving them a festive username.', \
                       '-removefestive':'Strips all festive emotes from all nicknames', \
-                      '-changelog':'Displays the changelog'}
-short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True, '-dci':True}
-linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makefestive':'-mf', '-removefestive':'-rf', '-dumpchannelinfo':'-dci'}
+                      '-changelog':'Displays the changelog', \
+                      '-wiki':'Gets a page from the baystation12 wiki'}
+short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True, '-dci':True, '-w':True}
+linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makefestive':'-mf', '-removefestive':'-rf', '-dumpchannelinfo':'-dci', '-wiki':'-w'}
 known_servers = []
+to_verify = [commands, commands_with_help, short_commands, linked_commands]
 
 @client.event
 @asyncio.coroutine
@@ -58,6 +66,20 @@ def on_ready():
     yield from event_to_log(client.user.name)
     yield from event_to_log(client.user.id)
     yield from event_to_log('------')
+    print("test")
+    yield from startup_check()
+
+@asyncio.coroutine
+def startup_check():
+    failures = []
+    yield from event_to_log('```Pandabot booting up. Running startup checks.```')
+    for comm in to_verify:
+        curr = comm.keys()
+        if len(curr) > len(set(curr)):
+            yield from failures.append("STARTUP FAILURE - " + str(to_verify[comm]) + " contained duplicate entries.")
+    if(len(failures)):
+        yield from event_to_log('```' + str([str(fail) + "\n" for fail in failures]) + '```')
+        exit()
 
 @client.event
 @asyncio.coroutine
@@ -169,16 +191,22 @@ def dump_config():
     yield from event_to_log("Done.")
 
 @asyncio.coroutine
-def event_to_log(message):
+def event_to_log(message, to_log_channel = False):
+    msg = (str(datetime.datetime.now()) + " " + message + "\n")
     with open(log_file, "a") as file:
-        file.write(str(datetime.datetime.now()) + " " + message + "\n")
+        file.write(msg)
+    if(to_log_channel):
+        yield from client.send_message(log_channel, msg)
 
 #Deprecated
 @asyncio.coroutine
-def message_to_log(message):
+def message_to_log(message, to_log_channel = False):
+    msg = str(message.timestamp) + " " + str(message.author) + " " + message.clean_content + "\n"
     with open(log_file, "a") as file:
-        file.write(str(message.timestamp) + " " + str(message.author) + " " + message.clean_content + "\n")
-
+        file.write(msg)
+    if(to_log_channel):
+        yield from client.send_message(log_channel, msg)
+        
 @asyncio.coroutine
 def refresh_roles(server):
     if(server not in known_servers):
@@ -478,7 +506,35 @@ def handle_command(message, command):
         mes +=str(message.channel.position) + "\n"
         mes += "```"
         yield from client.send_message(message.channel, mes)
-        
+    
+    ###### Wiki ######
+    if(yield from command_in_and_useable(['-wiki', '-w'], command)):
+        if(len(msgSplit) > 1):
+            for wiki in wikipaths:
+                path = wiki + '/' + '_'.join(msgSplit[1:])
+                request = None
+                try:
+                    request = requests.get(path)
+                except:
+                    fail_msg = '`Page unavailable`'
+                if request.status_code == 200:
+                    br = mechanicalsoup.StatefulBrowser()
+                    valid = True
+                    for disqual in wiki_disqualifiers:
+                        br.open(path)
+                        page = br.get_current_page()
+                        if(disqual in page.title.text):
+                            valid = False
+                    if(valid):
+                        fail_msg = ""
+                        yield from client.send_message(message.channel, path)
+                        break
+                    else:
+                        fail_msg = '`Invalid page`'
+                else:
+                    fail_msg = '`Invalid page`'
+        else:
+            fail_msg = '`Argument required`'
     
     if(len(fail_msg)):
         yield from client.send_message(message.channel, fail_msg)
