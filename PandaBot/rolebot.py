@@ -26,7 +26,7 @@ protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.6"
+bot_version = "1.6.1"
 version_text = ["Added a -wiki command."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
@@ -66,7 +66,6 @@ def on_ready():
     yield from event_to_log(client.user.name)
     yield from event_to_log(client.user.id)
     yield from event_to_log('------')
-    print("test")
     yield from startup_check()
 
 @asyncio.coroutine
