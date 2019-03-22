@@ -22,12 +22,12 @@ wikipaths = ["https://github.com/Baystation12/Baystation12/wiki","https://wiki.b
 wiki_disqualifiers = ["Create New Page", "Home"]
 client = discord.Client()
 roles = []
-protected_roles = []    
+protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.6.1"
-version_text = ["Added a -wiki command."]
+bot_version = "1.7"
+version_text = ["Pandabot should now self-restart if it dies."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
 
@@ -48,11 +48,11 @@ commands_with_help = {'-addselrole [role]':'Adds a role to the list of publicall
                       '-makefestive':'Sends a message prompting people to react to it, giving them a festive username.', \
                       '-removefestive':'Strips all festive emotes from all nicknames', \
                       '-changelog':'Displays the changelog', \
-                      '-wiki':'Gets a page from the baystation12 wiki'}
+                      '-wiki':'Gets a page from the wiki'}
 short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True, '-dci':True, '-w':True}
 linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makefestive':'-mf', '-removefestive':'-rf', '-dumpchannelinfo':'-dci', '-wiki':'-w'}
 known_servers = []
-to_verify = [commands, commands_with_help, short_commands, linked_commands]
+to_verify = [commands, commands_with_help, short_commands]
 
 @client.event
 @asyncio.coroutine
@@ -68,17 +68,18 @@ def on_ready():
     yield from event_to_log('------')
     yield from startup_check()
 
-@asyncio.coroutine
 def startup_check():
     failures = []
-    yield from event_to_log('```Pandabot booting up. Running startup checks.```')
+    yield from event_to_log('Pandabot booting up. Running startup checks.')
     for comm in to_verify:
         curr = comm.keys()
         if len(curr) > len(set(curr)):
             yield from failures.append("STARTUP FAILURE - " + str(to_verify[comm]) + " contained duplicate entries.")
     if(len(failures)):
-        yield from event_to_log('```' + str([str(fail) + "\n" for fail in failures]) + '```')
+        event_to_log('```' + str([str(fail) + "\n" for fail in failures]) + '```')
         exit()
+    yield from event_to_log('Startup checks passed.')
+    return
 
 @client.event
 @asyncio.coroutine
@@ -188,6 +189,9 @@ def dump_config():
             for item in minutes:
                 file.write("@" + str(item) + "\n")
     yield from event_to_log("Done.")
+
+def get_appended_url(url, add):
+    return str(url + ('/' if not url.endswith('/') else '') + add)
 
 @asyncio.coroutine
 def event_to_log(message, to_log_channel = False):
@@ -498,7 +502,7 @@ def handle_command(message, command):
             fail_msg = '`Permission Denied`'
     
     ###### Dump Channel Info ######
-    if(yield from command_in_and_useable(['-dumpchannelinfo', '-rs'], command)):
+    if(yield from command_in_and_useable(['-dumpchannelinfo', '-dci'], command)):
         mes = "```\n"
         mes += message.channel.id + "\n"
         mes += message.channel.server.id + "\n"
@@ -510,7 +514,7 @@ def handle_command(message, command):
     if(yield from command_in_and_useable(['-wiki', '-w'], command)):
         if(len(msgSplit) > 1):
             for wiki in wikipaths:
-                path = wiki + '/' + '_'.join(msgSplit[1:])
+                path = get_appended_url(wiki, '_'.join(msgSplit[1:]))
                 request = None
                 try:
                     request = requests.get(path)
@@ -552,4 +556,6 @@ def get_key():
         return str(file.read())
     
 #Do NOT share this key, under any circumstances.
-client.run(get_key())
+while(True):
+    print("Booting client.")
+    client.run(get_key())
