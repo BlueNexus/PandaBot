@@ -6,6 +6,7 @@ import datetime
 import random
 import requests
 import mechanicalsoup
+import os
 
 #
 ######## CONFIG ########
@@ -13,6 +14,7 @@ config_file = "config.txt"
 log_file = "log.txt"
 roles_file = "roles.txt"
 key_file = "key.txt"
+crash_file = "crashlog.txt"
 self_timeout = False
 ########################
 
@@ -26,8 +28,8 @@ protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.7"
-version_text = ["Pandabot should now self-restart if it dies."]
+bot_version = "1.8"
+version_text = ["Pandabot should now self-restart if it dies. For realsies, this time."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
 
@@ -68,6 +70,7 @@ def on_ready():
     yield from event_to_log('------')
     yield from startup_check()
 
+
 def startup_check():
     failures = []
     yield from event_to_log('Pandabot booting up. Running startup checks.')
@@ -78,8 +81,23 @@ def startup_check():
     if(len(failures)):
         event_to_log('```' + str([str(fail) + "\n" for fail in failures]) + '```')
         exit()
+   
     yield from event_to_log('Startup checks passed.')
     return
+
+@asyncio.coroutine
+def log_crashes():
+    has_crashed = False
+    try:
+        with open(crash_file) as file:
+            yield from text_to_log(str("```" + file.read() + "```"), True)
+
+            has_crashed = True
+    except:
+        pass #No crashes, don't need to do anything here.
+
+    if(has_crashed):
+        os.remove(crash_file)
 
 @client.event
 @asyncio.coroutine
@@ -138,13 +156,16 @@ def on_message(message):
     if((message.server not in known_servers) and message.server is not None):
         yield from refresh_roles(message.server)
         yield from refresh_config(message.server)
+        yield from log_crashes()
         known_servers.append(message.server)
+
     #If it's a command
     if message.content.startswith('-'):
         yield from message_to_log(message)
         message_split = message.content.split()
         if((message_split[0] in commands) or (message_split[0] in short_commands)):
             yield from handle_command(message, message_split[0])
+
     #If it's from the bot, and timeout is enabled, delete the message.
     if((message.author.id == client.user.id) and self_timeout):
         time.sleep(5)
@@ -209,7 +230,14 @@ def message_to_log(message, to_log_channel = False):
         file.write(msg)
     if(to_log_channel):
         yield from client.send_message(log_channel, msg)
-        
+
+@asyncio.coroutine
+def text_to_log(text, to_log_channel = False):
+    with open(log_file, "a") as file:
+        file.write(text)
+    if(to_log_channel):
+        yield from client.send_message(log_channel, text)
+
 @asyncio.coroutine
 def refresh_roles(server):
     if(server not in known_servers):
@@ -557,5 +585,12 @@ def get_key():
     
 #Do NOT share this key, under any circumstances.
 while(True):
-    print("Booting client.")
-    client.run(get_key())
+    try:
+        print("Booting client.")
+        client.run(get_key())
+
+    except Exception as e:
+        with open(crash_file, "w+") as file:
+            file.write(str(e))
+        continue
+        
