@@ -16,6 +16,7 @@ roles_file = "roles.txt"
 key_file = "key.txt"
 crash_file = "crashlog.txt"
 self_timeout = False
+max_pruned_messages = 200
 ########################
 
 ####### GLOBALS ########
@@ -28,8 +29,8 @@ protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.8"
-version_text = ["Pandabot should now self-restart if it dies. For realsies, this time."]
+bot_version = "1.8.1"
+version_text = ["The Prune command now has a limit, to limit the damage caused by abuse."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
 
@@ -395,7 +396,7 @@ def handle_command(message, command):
         if(message.channel.permissions_for(requester).manage_messages):
             if(len(msgSplit) > 1):
                 try:
-                    to_purge = int(msgSplit[1])
+                    to_purge = min(int(msgSplit[1]), max_pruned_messages)
                     deleted = yield from client.purge_from(channel=message.channel, limit=to_purge)
                     yield from client.send_message(message.channel, (requester.name + ' deleted {} message(s)').format(len(deleted)))
                 except:
