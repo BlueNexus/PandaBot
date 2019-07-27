@@ -29,8 +29,8 @@ protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.8.1"
-version_text = ["The Prune command now has a limit, to limit the damage caused by abuse."]
+bot_version = "1.8.2"
+version_text = ["The Prune command now has a limit, to limit the damage caused by abuse.", "The prune command now doesn't just prune the prune command if you do -prune 1."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
 
@@ -396,7 +396,7 @@ def handle_command(message, command):
         if(message.channel.permissions_for(requester).manage_messages):
             if(len(msgSplit) > 1):
                 try:
-                    to_purge = min(int(msgSplit[1]), max_pruned_messages)
+                    to_purge = min(int(msgSplit[1]) + 1, max_pruned_messages)
                     deleted = yield from client.purge_from(channel=message.channel, limit=to_purge)
                     yield from client.send_message(message.channel, (requester.name + ' deleted {} message(s)').format(len(deleted)))
                 except:
