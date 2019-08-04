@@ -30,7 +30,7 @@ protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.9"
+bot_version = "1.9.1"
 version_text = ["Added a -panda command. See -help for details."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
@@ -600,10 +600,13 @@ def handle_command(message, command):
             if(msgSplit[1] == "add"):
                 if(len(msgSplit) > 2):
                     if(msgSplit[2] not in pandas.values()):
-                        pandas[len(pandas)] = msgSplit[2]
-                        yield from dump_pandas()
-                        yield from refresh_pandas(message.server)
-                        yield from client.send_message(message.channel, '`Added`')
+                        if('http' in msgSplit[2]):
+                            pandas[len(pandas)] = msgSplit[2]
+                            yield from dump_pandas()
+                            yield from refresh_pandas(message.server)
+                            yield from client.send_message(message.channel, '`Added`')
+                        else:
+                            fail_msg = '`Item must be a link`'
                     else:
                         fail_msg = '`Item already exists`'
                 else:
