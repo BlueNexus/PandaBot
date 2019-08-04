@@ -15,6 +15,7 @@ log_file = "log.txt"
 roles_file = "roles.txt"
 key_file = "key.txt"
 crash_file = "crashlog.txt"
+panda_file = "pandas.txt"
 self_timeout = False
 max_pruned_messages = 200
 ########################
@@ -29,15 +30,16 @@ protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.8.2"
-version_text = ["The Prune command now has a limit, to limit the damage caused by abuse.", "The prune command now doesn't just prune the prune command if you do -prune 1."]
+bot_version = "1.9"
+version_text = ["Added a -panda command. See -help for details."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
+pandas = {}
 
 ########################
 
 commands = {'-addselrole':True, '-removeselrole':True, '-getrole':True, '-removerole':True, '-listroles':True, '-help':True, '-prune':True, '-protectrole':True, '-info':True, '-selftimeout':True, '-setlogchannel':True, '-changelog':True,\
-            '-makefestive':True, '-removefestive':True, '-dumpchannelinfo':True, '-wiki':True}
+            '-makefestive':True, '-removefestive':True, '-dumpchannelinfo':True, '-wiki':True, '-panda':True}
 commands_with_help = {'-addselrole [role]':'Adds a role to the list of publically available roles', \
                       '-removeselrole [role]':'Removes a role from the list of publically available roles', \
                       '-getrole [role]':'Acquire the specified role from the list of publically available roles', \
@@ -51,9 +53,10 @@ commands_with_help = {'-addselrole [role]':'Adds a role to the list of publicall
                       '-makefestive':'Sends a message prompting people to react to it, giving them a festive username.', \
                       '-removefestive':'Strips all festive emotes from all nicknames', \
                       '-changelog':'Displays the changelog', \
-                      '-wiki':'Gets a page from the wiki'}
-short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True, '-dci':True, '-w':True}
-linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makefestive':'-mf', '-removefestive':'-rf', '-dumpchannelinfo':'-dci', '-wiki':'-w'}
+                      '-wiki':'Gets a page from the wiki', \
+                      '-panda (optional [add/del])':'Shows, adds or removes a cute panda!'}
+short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True, '-dci':True, '-w':True, '-pa':True}
+linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makefestive':'-mf', '-removefestive':'-rf', '-dumpchannelinfo':'-dci', '-wiki':'-w', '-panda':'-pa'}
 known_servers = []
 to_verify = [commands, commands_with_help, short_commands]
 
@@ -157,6 +160,7 @@ def on_message(message):
     if((message.server not in known_servers) and message.server is not None):
         yield from refresh_roles(message.server)
         yield from refresh_config(message.server)
+        yield from refresh_pandas(message.server)
         yield from log_crashes()
         known_servers.append(message.server)
 
@@ -210,6 +214,13 @@ def dump_config():
         if(len(minutes)):
             for item in minutes:
                 file.write("@" + str(item) + "\n")
+    yield from event_to_log("Done.")
+
+@asyncio.coroutine
+def dump_pandas():
+    with open(panda_file, "w+") as file:
+        for item in pandas.values():
+            file.write(item + "\n")
     yield from event_to_log("Done.")
 
 def get_appended_url(url, add):
@@ -271,6 +282,21 @@ def refresh_config(server):
                     log_channel = server.get_channel(split_line[1])
                 if(line.startswith("@")):
                     minutes.append(split_line[1])
+
+@asyncio.coroutine
+def refresh_pandas(server):
+    if(server not in known_servers):
+        yield from event_to_log("Loading pandas for " + server.name)
+        global pandas
+        pandas = {}
+        with open(panda_file, "r") as file:
+            lines = [line.rstrip('\n') for line in file]
+            line_counter = 0
+            for line in lines:
+                pandas[str(line_counter)] = line
+                line_counter += 1
+            
+
 @asyncio.coroutine
 def can_use_command(command):
     if(command is None):
@@ -567,6 +593,52 @@ def handle_command(message, command):
                     fail_msg = '`Invalid page`'
         else:
             fail_msg = '`Argument required`'
+
+    ###### Panda ######
+    if(yield from command_in_and_useable(['-panda', '-p'], command)):
+        if(len(msgSplit) > 1):
+            if(msgSplit[1] == "add"):
+                if(len(msgSplit) > 2):
+                    if(msgSplit[2] not in pandas.values()):
+                        pandas[len(pandas)] = msgSplit[2]
+                        yield from dump_pandas()
+                        yield from refresh_pandas(message.server)
+                        yield from client.send_message(message.channel, '`Added`')
+                    else:
+                        fail_msg = '`Item already exists`'
+                else:
+                    fail_msg = '`Argument required`'
+            elif(msgSplit[1] == "del"):
+                if(requester.server_permissions.manage_messages):
+                    if(len(msgSplit) > 2):
+                        found = False
+                        for key, value in pandas.items():
+                            if(key == msgSplit[2] or value == msgSplit[2]):
+                                del pandas[key]
+                                yield from dump_pandas()
+                                yield from refresh_pandas(message.server)
+                                yield from client.send_message(message.channel, '`Deleted`')
+                                found = True
+                                break
+                        if(not found):
+                            fail_msg = '`Item not found`'
+                    else:
+                        fail_msg = '`Argument required`'
+                else:
+                    fail_msg = '`Permission denied`'
+        else:
+            if(len(pandas) > 0):
+                if(len(pandas) == 1):
+                    yield from client.send_message(message.channel, pandas[str(0)])
+                else:
+                    random_panda = random.randrange(0, len(pandas))
+                    yield from client.send_message(message.channel, pandas[str(random_panda)])
+            else:
+                fail_msg = '`Panda list empty`'
+                            
+
+                    
+                
     
     if(len(fail_msg)):
         yield from client.send_message(message.channel, fail_msg)
