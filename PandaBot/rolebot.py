@@ -29,9 +29,10 @@ roles = []
 protected_roles = []
 log_channel = None
 meeting_channel = None
+image_channel = None
 minutes = []
-bot_version = "1.9.2"
-version_text = ["Added a -panda command. See -help for details."]
+bot_version = "1.9.3"
+version_text = ["Added a -panda command. See -help for details.", "-added the -setimagechannel command, for limiting where commands like -panda can be used."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
 pandas = {}
@@ -39,7 +40,7 @@ pandas = {}
 ########################
 
 commands = {'-addselrole':True, '-removeselrole':True, '-getrole':True, '-removerole':True, '-listroles':True, '-help':True, '-prune':True, '-protectrole':True, '-info':True, '-selftimeout':True, '-setlogchannel':True, '-changelog':True,\
-            '-makefestive':True, '-removefestive':True, '-dumpchannelinfo':True, '-wiki':True, '-panda':True}
+            '-makefestive':True, '-removefestive':True, '-dumpchannelinfo':True, '-wiki':True, '-panda':True, '-setimagechannel':True}
 commands_with_help = {'-addselrole [role]':'Adds a role to the list of publically available roles', \
                       '-removeselrole [role]':'Removes a role from the list of publically available roles', \
                       '-getrole [role]':'Acquire the specified role from the list of publically available roles', \
@@ -50,13 +51,16 @@ commands_with_help = {'-addselrole [role]':'Adds a role to the list of publicall
                       '-protectrole [role][1/0]':'(Administration) Adds or removes a role to/from the list of protected roles, which cannot be made publically available.', \
                       '-selftimeout':'Toggles whether or not bot messages will be removed after a few seconds', \
                       '-setlogchannel':'Sets the current channel as the designated "log" channel, where deleted messages etc. will be logged.', \
+                      '-setimagechannel':'Sets the channel where image commands such as -panda are allowed to be used.', \
                       '-makefestive':'Sends a message prompting people to react to it, giving them a festive username.', \
                       '-removefestive':'Strips all festive emotes from all nicknames', \
                       '-changelog':'Displays the changelog', \
                       '-wiki':'Gets a page from the wiki', \
                       '-panda (optional [add/del])':'Shows, adds or removes a cute panda!'}
-short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True, '-dci':True, '-w':True, '-pa':True}
-linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i', '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makefestive':'-mf', '-removefestive':'-rf', '-dumpchannelinfo':'-dci', '-wiki':'-w', '-panda':'-pa'}
+short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True, '-dci':True, '-w':True, '-pa':True, '-sic':True}
+linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i',\
+                   '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makefestive':'-mf', '-removefestive':'-rf', '-dumpchannelinfo':'-dci', '-wiki':'-w', '-panda':'-pa',\
+                   '-setimagechannel':'-sic'}
 known_servers = []
 to_verify = [commands, commands_with_help, short_commands]
 
@@ -211,6 +215,8 @@ def dump_config():
     with open(config_file, "w+") as file:
         if(log_channel is not None):
             file.write("# " + log_channel.id + "\n")
+        if(image_channel is not None):
+            file.write("$ " + image_channel.id + "\n")
         if(len(minutes)):
             for item in minutes:
                 file.write("@" + str(item) + "\n")
@@ -280,6 +286,8 @@ def refresh_config(server):
                 split_line = line.split()
                 if(line.startswith("#")):
                     log_channel = server.get_channel(split_line[1])
+                if(line.startswith("$")):
+                    image_channel = server.get_channel(split_line[1])
                 if(line.startswith("@")):
                     minutes.append(split_line[1])
 
@@ -518,6 +526,29 @@ def handle_command(message, command):
         else:
             fail_msg = '`Permission Denied`'
 
+    ###### Set log channel ######
+    #TODO: Refactor this and the above command to remove the copied code
+    if(yield from command_in_and_useable(['-setimagechannel', '-sic'], command)):
+        if(requester.server_permissions.administrator):
+            target_channel = message.channel
+
+            def check(msg):
+                if(msg.content.startswith("Y") or msg.content.startswith("N")):
+                    return True
+                return False
+
+            yield from client.send_message(message.channel, ('`Set ' + target_channel.name + ' as the image channel? Y/N`'))
+            reply = yield from client.wait_for_message(timeout=30, author=requester, channel=target_channel, check=check)
+            if(reply):
+                global image_channel
+                image_channel = (target_channel if reply.content.upper().startswith("Y") else image_channel)
+                yield from dump_config()
+                yield from client.send_message(message.channel, ('`Image channel {}`'.format(('set to ' + image_channel.name) if reply.content.upper().startswith("Y") else ('unchanged'))))
+            else:
+                fail_msg = '`Timed out`'
+        else:
+            fail_msg = '`Permission Denied`'
+
     ###### Changelog ######
     if(yield from command_in_and_useable(['-changelog', '-c'], command)):
         output = "```###Changelog### \n"
@@ -595,50 +626,52 @@ def handle_command(message, command):
             fail_msg = '`Argument required`'
 
     ###### Panda ######
-    if(yield from command_in_and_useable(['-panda', '-p'], command)):
-        if(len(msgSplit) > 1):
-            if(msgSplit[1] == "add"):
-                if(len(msgSplit) > 2):
-                    if(msgSplit[2] not in pandas.values()):
-                        if('http' in msgSplit[2]):
-                            pandas[len(pandas)] = msgSplit[2]
-                            yield from dump_pandas()
-                            yield from refresh_pandas(message.server)
-                            yield from client.send_message(message.channel, '`Added`')
-                        else:
-                            fail_msg = '`Item must be a link`'
-                    else:
-                        fail_msg = '`Item already exists`'
-                else:
-                    fail_msg = '`Argument required`'
-            elif(msgSplit[1] == "del"):
-                if(requester.server_permissions.manage_messages):
+    if(yield from command_in_and_useable(['-panda', '-pa'], command)):
+        if(message.channel == image_channel or image_channel is None):
+            if(len(msgSplit) > 1):
+                if(msgSplit[1] == "add"):
                     if(len(msgSplit) > 2):
-                        found = False
-                        for key, value in pandas.items():
-                            if(key == msgSplit[2] or value == msgSplit[2]):
-                                del pandas[key]
+                        if(msgSplit[2] not in pandas.values()):
+                            if('http' in msgSplit[2]):
+                                pandas[len(pandas)] = msgSplit[2]
                                 yield from dump_pandas()
                                 yield from refresh_pandas(message.server)
-                                yield from client.send_message(message.channel, '`Deleted`')
-                                found = True
-                                break
-                        if(not found):
-                            fail_msg = '`Item not found`'
+                                yield from client.send_message(message.channel, '`Added`')
+                            else:
+                                fail_msg = '`Item must be a link`'
+                        else:
+                            fail_msg = '`Item already exists`'
                     else:
                         fail_msg = '`Argument required`'
-                else:
-                    fail_msg = '`Permission denied`'
-        else:
-            if(len(pandas) > 0):
-                if(len(pandas) == 1):
-                    yield from client.send_message(message.channel, pandas[0])
-                else:
-                    random_panda = random.randrange(0, len(pandas))
-                    yield from client.send_message(message.channel, pandas[random_panda])
+                elif(msgSplit[1] == "del"):
+                    if(requester.server_permissions.manage_messages):
+                        if(len(msgSplit) > 2):
+                            found = False
+                            for key, value in pandas.items():
+                                if(key == msgSplit[2] or value == msgSplit[2]):
+                                    del pandas[key]
+                                    yield from dump_pandas()
+                                    yield from refresh_pandas(message.server)
+                                    yield from client.send_message(message.channel, '`Deleted`')
+                                    found = True
+                                    break
+                            if(not found):
+                                fail_msg = '`Item not found`'
+                        else:
+                            fail_msg = '`Argument required`'
+                    else:
+                        fail_msg = '`Permission denied`'
             else:
-                fail_msg = '`Panda list empty`'
-                            
+                if(len(pandas) > 0):
+                    if(len(pandas) == 1):
+                        yield from client.send_message(message.channel, pandas[0])
+                    else:
+                        random_panda = random.randrange(0, len(pandas))
+                        yield from client.send_message(message.channel, pandas[random_panda])
+                else:
+                    fail_msg = '`Panda list empty`'
+        else:
+            fail_msg = '`This command must be used in ' + image_channel.name + '`'
 
                     
                 
