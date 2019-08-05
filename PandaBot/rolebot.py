@@ -30,7 +30,7 @@ protected_roles = []
 log_channel = None
 meeting_channel = None
 minutes = []
-bot_version = "1.9.1"
+bot_version = "1.9.2"
 version_text = ["Added a -panda command. See -help for details."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
@@ -293,7 +293,7 @@ def refresh_pandas(server):
             lines = [line.rstrip('\n') for line in file]
             line_counter = 0
             for line in lines:
-                pandas[str(line_counter)] = line
+                pandas[line_counter] = line
                 line_counter += 1
             
 
@@ -632,10 +632,10 @@ def handle_command(message, command):
         else:
             if(len(pandas) > 0):
                 if(len(pandas) == 1):
-                    yield from client.send_message(message.channel, pandas[str(0)])
+                    yield from client.send_message(message.channel, pandas[0])
                 else:
                     random_panda = random.randrange(0, len(pandas))
-                    yield from client.send_message(message.channel, pandas[str(random_panda)])
+                    yield from client.send_message(message.channel, pandas[random_panda])
             else:
                 fail_msg = '`Panda list empty`'
                             
