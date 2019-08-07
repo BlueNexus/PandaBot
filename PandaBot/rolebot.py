@@ -6,7 +6,10 @@ import datetime
 import random
 import requests
 import mechanicalsoup
+import re
 import os
+import urllib
+from bs4 import BeautifulSoup
 
 #
 ######## CONFIG ########
@@ -16,6 +19,8 @@ roles_file = "roles.txt"
 key_file = "key.txt"
 crash_file = "crashlog.txt"
 panda_file = "pandas.txt"
+complaints_file = "complaints.txt"
+complaints_url = "https://forums.baystation12.net/view/player-complaints.30/"
 self_timeout = False
 max_pruned_messages = 200
 ########################
@@ -23,6 +28,7 @@ max_pruned_messages = 200
 ####### GLOBALS ########
 festive_emotes = []
 wikipaths = ["https://github.com/Baystation12/Baystation12/wiki","https://wiki.baystation12.net"]
+forum_base_path = "https://forums.baystation12.net/"
 wiki_disqualifiers = ["Create New Page", "Home"]
 client = discord.Client()
 roles = []
@@ -30,17 +36,21 @@ protected_roles = []
 log_channel = None
 meeting_channel = None
 image_channel = None
+complaint_channel = None
 minutes = []
-bot_version = "1.9.3"
-version_text = ["Added a -panda command. See -help for details.", "-added the -setimagechannel command, for limiting where commands like -panda can be used."]
+bot_version = "1.10"
+version_text = ["Added a complaint auto-assign system for staff."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
 pandas = {}
+complaints = {}
+min_complaint_role = None
+max_complaint_role = None
 
 ########################
 
 commands = {'-addselrole':True, '-removeselrole':True, '-getrole':True, '-removerole':True, '-listroles':True, '-help':True, '-prune':True, '-protectrole':True, '-info':True, '-selftimeout':True, '-setlogchannel':True, '-changelog':True,\
-            '-makefestive':True, '-removefestive':True, '-dumpchannelinfo':True, '-wiki':True, '-panda':True, '-setimagechannel':True}
+            '-makefestive':True, '-removefestive':True, '-dumpchannelinfo':True, '-wiki':True, '-panda':True, '-setimagechannel':True, '-setcomplaintchannel':True, '-setcomplaintroles':True}
 commands_with_help = {'-addselrole [role]':'Adds a role to the list of publically available roles', \
                       '-removeselrole [role]':'Removes a role from the list of publically available roles', \
                       '-getrole [role]':'Acquire the specified role from the list of publically available roles', \
@@ -52,15 +62,18 @@ commands_with_help = {'-addselrole [role]':'Adds a role to the list of publicall
                       '-selftimeout':'Toggles whether or not bot messages will be removed after a few seconds', \
                       '-setlogchannel':'Sets the current channel as the designated "log" channel, where deleted messages etc. will be logged.', \
                       '-setimagechannel':'Sets the channel where image commands such as -panda are allowed to be used.', \
+                      '-setcomplaintchannel':'Sets the channel where complaints are posted and assigned.', \
+                      '-setcomplaintroles':'Sets the roles which get auto-assigned to complaints.', \
                       '-makefestive':'Sends a message prompting people to react to it, giving them a festive username.', \
                       '-removefestive':'Strips all festive emotes from all nicknames', \
                       '-changelog':'Displays the changelog', \
                       '-wiki':'Gets a page from the wiki', \
                       '-panda (optional [add/del])':'Shows, adds or removes a cute panda!'}
-short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True, '-dci':True, '-w':True, '-pa':True, '-sic':True}
+short_commands = {'-asr':True, '-rsr':True, '-gr':True, '-rr':True, '-lr':True, '-h':True, '-p':True, '-pr':True, '-i':True, '-sto':True, '-slc':True, '-c':True, '-mf':True, '-rf':True, \
+                  '-dci':True, '-w':True, '-pa':True, '-sic':True, '-scc':True, '-scr':True}
 linked_commands = {'-addselrole':'-asr', '-removeselrole':'-rsr', '-getrole':'-gr', '-removerole':'-rr', '-listroles':'-lr', '-help':'-h', '-prune':'-p', '-protectrole':'-pr', '-info':'-i',\
                    '-selftimeout':'-sto', '-setlogchannel':'-slc', '-changelog':'-c', '-makefestive':'-mf', '-removefestive':'-rf', '-dumpchannelinfo':'-dci', '-wiki':'-w', '-panda':'-pa',\
-                   '-setimagechannel':'-sic'}
+                   '-setimagechannel':'-sic', '-setcomplaintchannel':'-scc', '-setcomplaintroles':'-scr'}
 known_servers = []
 to_verify = [commands, commands_with_help, short_commands]
 
@@ -165,6 +178,7 @@ def on_message(message):
         yield from refresh_roles(message.server)
         yield from refresh_config(message.server)
         yield from refresh_pandas(message.server)
+        yield from refresh_complaints(message.server)
         yield from log_crashes()
         known_servers.append(message.server)
 
@@ -180,6 +194,71 @@ def on_message(message):
         time.sleep(5)
         yield from client.delete_message(message)
 
+    #Calling miscellaneous functions that need to happen semi-regularly
+    if(complaint_channel):
+        yield from update_complaints()
+        yield from process_complaints(message)
+
+@asyncio.coroutine
+def update_complaints():
+    global complaints
+    req = urllib.request.Request(complaints_url, headers={'User-Agent' : "Magic Browser"})
+    html_doc = urllib.request.urlopen(req).read()
+    soup = BeautifulSoup(html_doc, 'html.parser')
+    all_entries = soup.find_all("li", recursive=True)
+    if(len(all_entries)):
+        shortlist = []
+        for entry in all_entries:
+            if(entry.get('id')):
+                if(entry.get('id').startswith('thread-')):
+                    if(not entry.get('id').startswith('thread-32')):
+                        shortlist.append(entry.get('id'))
+        for item in shortlist:
+            if(item not in complaints.keys()):
+               complaints[item] = False
+    dump_complaints()
+    
+               
+
+@asyncio.coroutine
+def process_complaints(message):
+    global complaints
+    if(max_complaint_role and min_complaint_role):
+        for complaint, handled in complaints.items():
+            if(not handled):
+                handler = yield from pick_complaint_handler(message)
+                if(not handler):
+                    yield from client.send_message(complaint_channel, '`No available complaint handlers found`')
+                else:
+                    target_url = yield from get_link_from_id(complaint)
+                    msg = "Name: " + handler.mention + "\n" + \
+                          "Complaint URL: " + target_url
+                    complaints[complaint] = True
+                    yield from dump_complaints()
+                    yield from client.send_message(complaint_channel, msg)           
+
+@asyncio.coroutine
+def get_link_from_id(to_find):
+    req = urllib.request.Request(complaints_url, headers={'User-Agent' : "Magic Browser"})
+    html_doc = urllib.request.urlopen(req).read()
+    soup = BeautifulSoup(html_doc, 'html.parser')
+    buffer = soup.find_all('a')
+    searching = ''.join(c for c in to_find if c.isdigit())
+    for item in buffer:
+        if(str(searching) in str(item.get('href'))):
+            return forum_base_path + item.get('href')
+    
+
+@asyncio.coroutine
+def pick_complaint_handler(message):
+    random.seed(datetime.datetime.now())
+    possible_handlers = []
+    for member in message.server.members:
+        if(min_complaint_role and max_complaint_role):
+            if(member.top_role.position >= min_complaint_role.position and member.top_role.position <= max_complaint_role.position):
+                possible_handlers.append(member)
+    return random.choice(possible_handlers) if possible_handlers else None
+
 @asyncio.coroutine
 def is_role(msg, Ser):
     '''
@@ -191,6 +270,11 @@ def is_role(msg, Ser):
     Role object
     '''
     return(discord.utils.get(Ser.roles, name=msg))
+
+def check_yn(msg):
+    if(msg.content.startswith("Y") or msg.content.startswith("N")):
+        return True
+    return False
 
 @asyncio.coroutine
 def dump_roles():
@@ -212,14 +296,22 @@ def dump_config():
     Params: None
     Returns: N
     '''
+    print(str(min_complaint_role))
     with open(config_file, "w+") as file:
         if(log_channel is not None):
             file.write("# " + log_channel.id + "\n")
         if(image_channel is not None):
             file.write("$ " + image_channel.id + "\n")
+        if(complaint_channel is not None):
+            file.write("% " + complaint_channel.id + "\n")
+        if(min_complaint_role):
+            file.write("& " + min_complaint_role.name + "\n")
+        if(max_complaint_role):
+            file.write("* " + max_complaint_role.name + "\n")
         if(len(minutes)):
             for item in minutes:
                 file.write("@" + str(item) + "\n")
+
     yield from event_to_log("Done.")
 
 @asyncio.coroutine
@@ -227,6 +319,13 @@ def dump_pandas():
     with open(panda_file, "w+") as file:
         for item in pandas.values():
             file.write(item + "\n")
+    yield from event_to_log("Done.")
+
+@asyncio.coroutine
+def dump_complaints():
+    with open(complaints_file, "w+") as file:
+        for key, value in complaints.items():
+            file.write(str(key) + " " + str(value) + "\n")
     yield from event_to_log("Done.")
 
 def get_appended_url(url, add):
@@ -258,52 +357,70 @@ def text_to_log(text, to_log_channel = False):
 
 @asyncio.coroutine
 def refresh_roles(server):
-    if(server not in known_servers):
-        yield from event_to_log("Loading roles for " + server.name)
-        with open(roles_file, "r") as file:
-            lines = [line.rstrip('\n') for line in file]
-            for line in lines:
-                if(line.startswith("###")):
-                    line = line.split(maxsplit=1)
-                    cur_role = yield from is_role(line[1], server)
-                    if(cur_role):
-                        protected_roles.append(cur_role)
-                    continue
-                cur_role = yield from is_role(line, server)
+    yield from event_to_log("Loading roles for " + server.name)
+    with open(roles_file, "r") as file:
+        lines = [line.rstrip('\n') for line in file]
+        for line in lines:
+            if(line.startswith("###")):
+                line = line.split(maxsplit=1)
+                cur_role = yield from is_role(line[1], server)
                 if(cur_role):
-                    roles.append(cur_role)
+                    protected_roles.append(cur_role)
+                continue
+            cur_role = yield from is_role(line, server)
+            if(cur_role):
+                roles.append(cur_role)
 
 @asyncio.coroutine
 def refresh_config(server):
-    if(server not in known_servers):
-        yield from event_to_log("Loading config for " + server.name)
-        global minutes
-        global log_channel
-        minutes = []
-        with open(config_file, "r") as file:
-            lines = [line.rstrip('\n') for line in file]
-            for line in lines:
-                split_line = line.split()
-                if(line.startswith("#")):
-                    log_channel = server.get_channel(split_line[1])
-                if(line.startswith("$")):
-                    image_channel = server.get_channel(split_line[1])
-                if(line.startswith("@")):
-                    minutes.append(split_line[1])
+    yield from event_to_log("Loading config for " + server.name)
+    global minutes
+    global log_channel
+    global image_channel
+    global complaint_channel
+    global min_complaint_role
+    global max_complaint_role
+    minutes = []
+    with open(config_file, "r") as file:
+        lines = [line.rstrip('\n') for line in file]
+        for line in lines:
+            split_line = line.split(maxsplit=1)
+            if(line.startswith("#")):
+                log_channel = server.get_channel(split_line[1])
+            if(line.startswith("$")):
+                image_channel = server.get_channel(split_line[1])
+            if(line.startswith("%")):
+                complaint_channel = server.get_channel(split_line[1])
+            if(line.startswith("&")):
+                min_complaint_role = discord.utils.get(server.roles, name=split_line[1])
+            if(line.startswith("*")):
+                max_complaint_role = discord.utils.get(server.roles, name=split_line[1])
+                print(split_line[1])
+            if(line.startswith("@")):
+                minutes.append(split_line[1])
 
 @asyncio.coroutine
 def refresh_pandas(server):
-    if(server not in known_servers):
-        yield from event_to_log("Loading pandas for " + server.name)
-        global pandas
-        pandas = {}
-        with open(panda_file, "r") as file:
-            lines = [line.rstrip('\n') for line in file]
-            line_counter = 0
-            for line in lines:
-                pandas[line_counter] = line
-                line_counter += 1
-            
+    yield from event_to_log("Loading pandas for " + server.name)
+    global pandas
+    pandas = {}
+    with open(panda_file, "r") as file:
+        lines = [line.rstrip('\n') for line in file]
+        line_counter = 0
+        for line in lines:
+            pandas[line_counter] = line
+            line_counter += 1
+
+@asyncio.coroutine
+def refresh_complaints(server):
+    global complaints
+    complaints = {}
+    with open(complaints_file, "r") as file:
+        lines = [line.rstrip('\n') for line in file]
+        for line in lines:
+            split_line = line.split()
+            complaints[split_line[0]] = split_line[1]
+            print(str(complaints))
 
 @asyncio.coroutine
 def can_use_command(command):
@@ -423,7 +540,37 @@ def handle_command(message, command):
                 fail_msg = '`Two arguments required.`'
         else:
             fail_msg = '`Permission Denied`'
-                        
+
+    ###### Set complaint roles ######
+    if(yield from command_in_and_useable(['-setcomplaintroles', '-scr'], command)):
+        global min_complaint_role
+        global max_complaint_role
+        if(requester.server_permissions.administrator):
+            @asyncio.coroutine
+            def get_maxmin(text):
+                def check(msg):
+                    if(len(msg.role_mentions) == 0):
+                        return False
+                    return True
+                
+                yield from client.send_message(message.channel, ('`Ping the ' + str(text) + ' role which can handle complaints. This can be the same as the other role.`'))
+                reply = yield from client.wait_for_message(timeout=30, author=requester, channel=message.channel, check=check)
+                if(reply):
+                    return reply.role_mentions[0]
+                yield from client.send_message(message.channel, '`Timed out`')
+                return None
+            buffer_min_rank = yield from get_maxmin("lowest")
+            buffer_max_rank = yield from get_maxmin("highest")
+            yield from client.send_message(message.channel, buffer_min_rank)
+            yield from client.send_message(message.channel, buffer_max_rank)
+            if(buffer_min_rank and buffer_max_rank):
+                min_complaint_role = buffer_min_rank
+                max_complaint_role = buffer_max_rank
+                yield from dump_config()
+            else:
+                fail_msg = '`Both a maximum and minimum role must be provided. They are allowed to be the same`'
+        else:
+            fail_msg = '`Permission Denied`'
 
     ###### Prune messages ######
     if(yield from command_in_and_useable(['-prune', '-p'], command)):
@@ -470,8 +617,7 @@ def handle_command(message, command):
                  + "Member count: " + str(Server.member_count) + "\n")
         output = output + "```"
         yield from client.send_message(message.channel, output)
-                    
-        
+
     ###### Get selectable role ######
     if(yield from command_in_and_useable(['-getrole', '-gr'], command)):
         if(len(msgSplit) > 1):
@@ -508,14 +654,8 @@ def handle_command(message, command):
     if(yield from command_in_and_useable(['-setlogchannel', '-slc'], command)):
         if(requester.server_permissions.administrator):
             target_channel = message.channel
-
-            def check(msg):
-                if(msg.content.startswith("Y") or msg.content.startswith("N")):
-                    return True
-                return False
-
             yield from client.send_message(message.channel, ('`Set ' + target_channel.name + ' as the log channel? Y/N`'))
-            reply = yield from client.wait_for_message(timeout=30, author=requester, channel=target_channel, check=check)
+            reply = yield from client.wait_for_message(timeout=30, author=requester, channel=target_channel, check=check_yn)
             if(reply):
                 global log_channel
                 log_channel = (target_channel if reply.content.upper().startswith("Y") else log_channel)
@@ -531,19 +671,30 @@ def handle_command(message, command):
     if(yield from command_in_and_useable(['-setimagechannel', '-sic'], command)):
         if(requester.server_permissions.administrator):
             target_channel = message.channel
-
-            def check(msg):
-                if(msg.content.startswith("Y") or msg.content.startswith("N")):
-                    return True
-                return False
-
             yield from client.send_message(message.channel, ('`Set ' + target_channel.name + ' as the image channel? Y/N`'))
-            reply = yield from client.wait_for_message(timeout=30, author=requester, channel=target_channel, check=check)
+            reply = yield from client.wait_for_message(timeout=30, author=requester, channel=target_channel, check=check_yn)
             if(reply):
                 global image_channel
                 image_channel = (target_channel if reply.content.upper().startswith("Y") else image_channel)
                 yield from dump_config()
                 yield from client.send_message(message.channel, ('`Image channel {}`'.format(('set to ' + image_channel.name) if reply.content.upper().startswith("Y") else ('unchanged'))))
+            else:
+                fail_msg = '`Timed out`'
+        else:
+            fail_msg = '`Permission Denied`'
+
+    ###### Set complaint channel ######
+    #TODO: Refactor this and the above two commands to remove the copied code
+    if(yield from command_in_and_useable(['-setcomplaintchannel', '-scc'], command)):
+        if(requester.server_permissions.administrator):
+            target_channel = message.channel
+            yield from client.send_message(message.channel, ('`Set ' + target_channel.name + ' as the complaint channel? Y/N`'))
+            reply = yield from client.wait_for_message(timeout=30, author=requester, channel=target_channel, check=check_yn)
+            if(reply):
+                global complaint_channel
+                complaint_channel = (target_channel if reply.content.upper().startswith("Y") else complaint_channel)
+                yield from dump_config()
+                yield from client.send_message(message.channel, ('`Complaint channel {}`'.format(('set to ' + complaint_channel.name) if reply.content.upper().startswith("Y") else ('unchanged'))))
             else:
                 fail_msg = '`Timed out`'
         else:
