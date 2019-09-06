@@ -9,6 +9,7 @@ import mechanicalsoup
 import re
 import os
 import urllib
+import difflib
 from bs4 import BeautifulSoup
 
 #
@@ -38,7 +39,7 @@ meeting_channel = None
 image_channel = None
 complaint_channel = None
 minutes = []
-bot_version = "1.10"
+bot_version = "1.11"
 version_text = ["Added a complaint auto-assign system for staff."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
@@ -161,6 +162,21 @@ def on_message_delete(message):
 
 @client.event
 @asyncio.coroutine
+def on_message_edit(before, after):
+    before_content = before.content.strip('`')
+    after_content = after.content.strip('`')
+    if(log_channel is not None):
+        output = (\
+                  '```MESSAGE EDITED \n'\
+                  'Message created at: ' + str(before.timestamp) + '\n'\
+                  'Message channel: ' + before.channel.name + '\n'\
+                  'Message author: ' + before.author.name + '\n'\
+                  '----- DIFF ----- \n' + ''.join(difflib.ndiff(before_content.splitlines(1), after_content.splitlines(1))) + \
+                  '\n```')
+        yield from client.send_message(log_channel, output)
+
+@client.event
+@asyncio.coroutine
 def on_reaction_add(reaction, user):
     if(reaction.message.id in reaction_linked_messages and reaction_linked_messages[reaction.message.id]):
         yield from reaction_linked_messages[reaction.message.id](user)
@@ -195,7 +211,7 @@ def on_message(message):
         yield from client.delete_message(message)
 
     #Calling miscellaneous functions that need to happen semi-regularly
-    if(complaint_channel):
+    if(complaint_channel and max_complaint_role and min_complaint_role):
         yield from update_complaints()
         yield from process_complaints(message)
 
