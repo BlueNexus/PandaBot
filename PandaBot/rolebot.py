@@ -39,7 +39,7 @@ meeting_channel = None
 image_channel = None
 complaint_channel = None
 minutes = []
-bot_version = "1.11"
+bot_version = "1.11b"
 version_text = ["Added a complaint auto-assign system for staff."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
@@ -165,13 +165,13 @@ def on_message_delete(message):
 def on_message_edit(before, after):
     before_content = before.content.strip('`')
     after_content = after.content.strip('`')
-    if(log_channel is not None):
+    if(log_channel is not None and len(before_content) and len(after_content)):
         output = (\
                   '```MESSAGE EDITED \n'\
                   'Message created at: ' + str(before.timestamp) + '\n'\
                   'Message channel: ' + before.channel.name + '\n'\
                   'Message author: ' + before.author.name + '\n'\
-                  '----- DIFF ----- \n' + ''.join(difflib.ndiff(before_content.splitlines(1), after_content.splitlines(1))) + \
+                  '----- DIFF ----- \n' + '\n'.join(difflib.ndiff(before_content.splitlines(0), after_content.splitlines(0))) + \
                   '\n```')
         yield from client.send_message(log_channel, output)
 
