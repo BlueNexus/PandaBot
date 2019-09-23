@@ -10,9 +10,9 @@ import re
 import os
 import urllib
 import difflib
+import traceback
 from bs4 import BeautifulSoup
 
-#
 ######## CONFIG ########
 config_file = "config.txt"
 log_file = "log.txt"
@@ -39,7 +39,7 @@ meeting_channel = None
 image_channel = None
 complaint_channel = None
 minutes = []
-bot_version = "1.11c"
+bot_version = "1.11d"
 version_text = ["Added a complaint auto-assign system for staff."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
@@ -112,7 +112,7 @@ def log_crashes():
     has_crashed = False
     try:
         with open(crash_file) as file:
-            yield from text_to_log(str("```" + file.read() + "```"), True)
+            yield from text_to_log(str("```CRASH\n" + file.read() + "```"), True)
 
             has_crashed = True
     except:
@@ -859,14 +859,18 @@ def get_key():
     with open(key_file, 'r') as file:
         return str(file.read())
     
+boot_attempts = 0
 #Do NOT share this key, under any circumstances.
 while(True):
     try:
-        print("Booting client.")
+        boot_attempts += 1
+        if(boot_attempts == 5):
+            print("Possible crash loop detected.")
         client.run(get_key())
 
     except Exception as e:
+        error = traceback.format_exc()
         with open(crash_file, "w+") as file:
-            file.write(str(e))
+            file.write(str(error))
         continue
         
