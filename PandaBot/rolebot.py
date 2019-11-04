@@ -39,7 +39,7 @@ meeting_channel = None
 image_channel = None
 complaint_channel = None
 minutes = []
-bot_version = "1.11e"
+bot_version = "1.11f"
 version_text = ["Added a complaint auto-assign system for staff."]
 reaction_linked_messages = {}
 override_default_channel = "256853479698464768"
@@ -194,7 +194,7 @@ def on_message(message):
         yield from refresh_roles(message.server)
         yield from refresh_config(message.server)
         yield from refresh_pandas(message.server)
-        yield from refresh_complaints(message.server)
+        #yield from refresh_complaints(message.server)
         yield from log_crashes()
         known_servers.append(message.server)
 
@@ -211,9 +211,9 @@ def on_message(message):
         yield from client.delete_message(message)
 
     #Calling miscellaneous functions that need to happen semi-regularly
-    if(complaint_channel and max_complaint_role and min_complaint_role):
-        yield from update_complaints()
-        yield from process_complaints(message)
+    #if(complaint_channel and max_complaint_role and min_complaint_role):
+     #   yield from update_complaints()
+      #  yield from process_complaints(message)
 
 @asyncio.coroutine
 def update_complaints():
