@@ -866,16 +866,15 @@ def get_key():
     
 boot_attempts = 0
 #Do NOT share this key, under any circumstances.
-while(True):
-    try:
-        boot_attempts += 1
-        if(boot_attempts == 5):
-            print("Possible crash loop detected.")
-        client.run(get_key())
+try:
+    boot_attempts += 1
+    if(boot_attempts == 5):
+        print("Possible crash loop detected.")
+    client.run(get_key())
 
-    except Exception as e:
-        error = traceback.format_exc()
-        with open(crash_file, "w+") as file:
-            file.write(str(error))
-        continue
+except Exception as e:
+    error = traceback.format_exc()
+    with open(crash_file, "w+") as file:
+        file.write(str(error))
+    continue
         
