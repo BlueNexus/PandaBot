@@ -876,5 +876,4 @@ except Exception as e:
     error = traceback.format_exc()
     with open(crash_file, "w+") as file:
         file.write(str(error))
-    continue
         
